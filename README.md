@@ -23,6 +23,9 @@ A `Dockerfile` is provided. This will build a container with a python environmen
 
 To run the system in docker, use the `docker-compose.yaml` file to run in docker. 
 
+***NOTE*** You need to set environment variables for your [Alpaca](https://alpaca.markets) account. The api reads in the `API_KEY` and `SECRET` environment variables which can be found in the `src/trading_api/env.py` file.
+
+
 ```bash
 docker-compose up
 ```
