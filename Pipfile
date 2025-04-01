@@ -1,0 +1,27 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+alpaca-py = "*"
+typer = "*"
+numpy = "*"
+pandas = "*"
+matplotlib = "*"
+scikit-learn = "*"
+tensorflow = "*"
+tensorflow-metal = "*"
+"fastapi[standard]" = "*"
+"uvicorn[standard]" = "*"
+celery = "*"
+pydantic = "*"
+pymongo = "*"
+
+[dev-packages]
+ruff = "*"
+mypy = "*"
+
+
+[requires]
+python_version = "3.11"

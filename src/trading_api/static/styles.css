@@ -1,0 +1,32 @@
+
+#graph{
+    background-color: rgba(0,0,0,0);
+    border-radius: 5px;
+    height: 50vh;
+    
+}
+#parameters{
+    /* background-color: rgb(234, 141, 235); */
+    padding: 20px;
+}
+#data{
+    height: 40vh;
+
+}
+#main {
+    margin-left: 1vw;
+    margin-right: 1vw;;
+    max-width: 98vw;
+}
+
+.item{
+    float: right;
+}
+
+#loadingSpinner {
+    float: right;
+    display: none;
+}
+hr {
+    margin: 0px;
+}

@@ -1,0 +1,251 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container" id="main">
+    <div class="row">
+      <div class="col-9" id="graph" style="border-left-color: inherit;">
+      </div> 
+      <div class="col-3" id="parameters">
+        <form action="/" method="get" onsubmit="formValidation(event)">
+            <div class="row">
+                <div class="form-group">
+                    <label for="inputSymbol" class="form-label">Symbol</label>
+                    <input class="form-control" type="text" id="inputSymbol" aria-label="Disabled input example" disabled name="symbol">
+                </div>
+            </div>
+            <br/>
+            <div class="row">
+                <div class="form-group">
+                    <label for="inputTrainingDataSize" class="form-label">Training Data Size</label>
+                    <input type="number" class="form-control" id="inputTrainingDataSize" aria-describedby="TrainingDataSizeHelp" name="training_set_size">
+                    <div id="TrainingDataSizeHelp" class="form-text"></div>
+                </div>
+            </div>   
+            <div class="row">
+                <div class="col">
+                    <div class="form-group">
+                        <label for="inputBatchSize" class="form-label">Batch Size</label>
+                        <input type="number" class="form-control" id="inputBatchSize" aria-describedby="batchSizeHelp" name="batch_size">
+                        <div id="batchSizeHelp" class="form-text"></div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-group">
+                        <label for="inputEpoch" class="form-label">Epochs</label>
+                        <input type="number" class="form-control" id="inputEpoch" aria-describedby="epochHelp" name="epochs">
+                        <div id="epochHelp" class="form-text"></div>
+                    </div>
+                </div>
+            </div>
+
+            <br/>
+            <div class="row">
+                <div class="form-group">
+                    <label for="LSTM_units">LSTM Units</label>
+                    <input type="range" class="form-range" id="LSTM_Range" min="16" max="256" name="LSTM_units">
+                  </div>
+            </div>
+            <div class="row">
+                <div class="form-group">
+                    <label for="dropout">Dropout</label>
+                    <input type="range" class="form-range" id="dropout_Range" min="0" max="1" step="0.05" name="dropout">
+                </div>
+            </div>
+            <br/>
+            <div class="row">
+                <div class="form-group">
+                    <select class="form-select" aria-label="Loss Type Selector" name="loss_type" id="selectLossType">
+                        <option selected>Loss Type</option>
+                        <option value="mean_squared_error">Mean Squared Error</option>
+                    </select>
+                </div>
+            </div>
+            <br/>
+            <div class="row">
+                <div class="form-group">
+                    <select class="form-select" aria-label="Optimizer Selector" name="optimizer" id="selectOptimizer">
+                        <option selected>Optimizer Type</option>
+                        <option value="adam">Adam</option>
+                      </select>
+                </div>
+            </div>
+           <br/>
+           <div class="container">
+            <button type="submit" class="btn btn-primary item">Submit</button>
+            <div class="spinner-border text-primary m-1" role="status" id="loadingSpinner"></div>
+           </div>
+        </form>    
+        
+      </div>
+    </div>
+    <hr/>
+    <div class="row">
+      <div class="col" id="data">
+            
+        <table id="data-table" class="display" width="100%"></table>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block script %}
+<script>
+    async function formValidation(event){
+        event.preventDefault()
+        req = await fetch("{{ url_for('generate_model_and_performance') }}", {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "symbol": event.target.symbol.value,
+                "LSTM_units": event.target.LSTM_units.value,
+                "dropout": event.target.dropout.value,
+                "loss_type": event.target.loss_type.value,
+                "optimizer": event.target.optimizer.value,
+                "epochs": event.target.epochs.value,
+                "batch_size": event.target.batch_size.value,
+                "training_set_size": event.target.training_set_size.value
+            })
+        })
+        const res = await req.json()
+        var training = true
+        var spinner = document.getElementById("loadingSpinner")
+        spinner.style.display = "inline-flex"
+        while (training) {
+            var r = await fetch(`/train/status/${res.task_id}`, {
+                method: "GET"
+            })
+            var response = await r.json()
+            console.log(response)
+            if (response.status == "SUCCESS") {
+                training = false
+                spinner.style.display = "none"
+            }
+            else if (response.status == "FAILURE") {
+                training = false
+                spinner.style.display = "none"
+            }
+            else {
+                await sleep(5000);
+            }
+        }
+        renderPlot()
+
+    }
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    window.onload = init
+    async function init() {
+        const param_req = await fetch("{{ url_for('get_training_parameters', symbol=symbol) }}", {
+            method: "GET"
+        })
+
+        if (param_req.status != 500) {
+            const params = await param_req.json()
+            document.getElementById("inputSymbol").value = params.symbol
+            document.getElementById("inputTrainingDataSize").value = params.training_set_size
+            document.getElementById("inputBatchSize").value = params.batch_size
+            document.getElementById("dropout_Range").value = params.dropout
+            document.getElementById("selectLossType").value = params.loss_type
+            document.getElementById("selectOptimizer").value = params.optimizer
+            document.getElementById("inputEpoch").value = params.epochs
+            document.getElementById("LSTM_Range").value = params.LSTM_size
+            console.log(params)        
+        } else {
+            document.getElementById("inputSymbol").value = "{{ symbol }}"
+            document.getElementById("inputTrainingDataSize").value = 50
+            document.getElementById("inputBatchSize").value = 20
+            document.getElementById("dropout_Range").value = 0.2
+            document.getElementById("selectLossType").value = "mean_squared_error"
+            document.getElementById("selectOptimizer").value = "adam"
+            document.getElementById("inputEpoch").value = 10
+            document.getElementById("LSTM_Range").value = 96
+        }
+
+    }
+    async function renderPlot() {
+        const param_req = await fetch("{{ url_for('get_training_parameters', symbol=symbol) }}", {
+            method: "GET"
+        })
+        let params
+        if (param_req.status != 500) {
+            params = await param_req.json()
+        }
+        else {
+            params = {training_set_size: 50}
+        }
+        
+        const dataSet = await fetch("{{ url_for('get_predicted_symbol_data', symbol=symbol) }}", {
+            method: "GET"
+        })
+        const data = await dataSet.json()
+        console.log(data)
+        const trace1 = {
+            x: data["times"],
+            y: data["raw_data"],
+            type: 'scatter',
+            name: "Historic Price"
+        }
+        const start = data["training_data_size"] + params.training_set_size
+        const end = data["raw_data"].length
+        const r = Array.from({ length: end - start + 1 }, (_, index) => start + index)
+
+        let trace2 = {
+            x: r.map(x => data["times"][x]),
+            y: data["predictions"],
+            type: 'scatter',
+            name: "Predicted Price",
+            marker: {
+                color: "red"
+            }
+        }
+        var layout = {
+            title: {
+                text:`${data["symbol"]} Predicted Price - ${data["predictions"][data["predictions"].length - 1].toFixed(2)}`,
+                font: {
+                    size: 24
+                },
+                xref: 'paper',
+                x: 0.05,
+            },
+            xaxis: {
+                title: {
+                text: 'Date',
+                },
+            },
+            yaxis: {
+                title: {
+                text: '$',
+                }
+            }
+            };
+        Plotly.newPlot("graph", [trace1, trace2], layout)
+    }
+    renderPlot()
+    renderTable()
+    async function renderTable() {
+        const dataSet = await fetch("{{ url_for('get_symbol_data', symbol=symbol) }}", {
+            method: "GET"
+        })
+        const data = await dataSet.json()
+        console.log(data)
+        new DataTable('#data-table', {
+            columns: [
+                { title: 'Date' },
+                { title: 'Open' },
+                { title: 'High' },
+                { title: 'Low' },
+                { title: 'Close' },
+                { title: 'Volume' },
+                { title: 'Trade Count' },
+                { title: 'vwap' }
+            ],
+            data: data,
+            order: [[0, 'desc']],
+            paging: false,
+            scrollCollapse: true,
+            scrollY: '300px'
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container" id="main">
+    <form action="/" method="get" onsubmit="runModel(event)">
+        <div class="form-group">
+            <label>Run a new model</label>
+            <input class="form-control" type="text" placeholder="Symbol" id="symbolToRun" name="symbol">
+        </div>
+        <button class="btn btn-primary m3" type="submit" id="run">Run</button>
+    </form>
+</div>
+<script>
+    window.onload = init
+    async function init() {
+        const param_req = await fetch("{{ url_for('get_latest_models') }}", {
+            method: "GET"
+        })
+        let models = await param_req.json()
+        console.log(models.models_ran)
+        let row
+        let container = document.getElementById("main")
+        for (let i = 0; i < models.models_ran.length; i++) {
+            console.log(i%3)
+            if (i % 3 === 0) {
+                row = document.createElement('div')
+                row.className = "row"
+                container.appendChild(row)
+            }
+            const wrapper = document.createElement('div')
+            const newElement = document.createElement('div')
+            const button = document.createElement('button')
+            button.type = "button"
+            button.textContent = `${models.models_ran[i]} Data`
+            button.className = "btn btn-primary"
+            button.id = `${models.models_ran[i]}_button`
+            button.onclick = function() {
+                window.location.href = `/report/${models.models_ran[i]}`
+            }
+            newElement.id = `${models.models_ran[i]}`
+            wrapper.className = "col-4"
+            wrapper.appendChild(newElement)
+            wrapper.appendChild(button)
+            row.appendChild(wrapper)
+            await renderPlot(models.models_ran[i])
+        }
+    }
+
+    async function runModel(event) {
+        console.log(event.target.symbol.value)
+    }
+
+    async function renderPlot(symbol) {
+        const param_req = await fetch(`/${symbol}/parameters`, {
+            method: "GET"
+        })
+        let params
+        if (param_req.status != 500) {
+            params = await param_req.json()
+        }
+        else {
+            params = {training_set_size: 50}
+        }
+        
+        const dataSet = await fetch(`/${symbol}/predicted_data`, {
+            method: "GET"
+        })
+        const data = await dataSet.json()
+        const start = data["training_data_size"] + params.training_set_size
+        const end = data["raw_data"].length
+        const r = Array.from({ length: end - start + 1 }, (_, index) => start + index)
+        console.log(data)
+        const trace1 = {
+            x: data["times"].slice(start, end),
+            y: data["raw_data"].slice(start, end),
+            type: 'scatter',
+            name: "Historic Price"
+        }
+
+
+        let trace2 = {
+            x: r.map(x => data["times"][x]),
+            y: data["predictions"],
+            type: 'scatter',
+            name: "Predicted Price",
+            marker: {
+                color: "red"
+            }
+        }
+        var layout = {
+            title: {
+                text:`${data["symbol"]} Predicted Price - ${data["predictions"][data["predictions"].length - 1].toFixed(2)}`,
+                font: {
+                    size: 24
+                },
+                xref: 'paper',
+                x: 0.05,
+            },
+            xaxis: {
+                title: {
+                text: 'Date',
+                },
+            },
+            yaxis: {
+                title: {
+                text: '$',
+                }
+            }
+            };
+        Plotly.newPlot(symbol, [trace1, trace2], layout)
+    }
+</script>
+{% endblock %}
