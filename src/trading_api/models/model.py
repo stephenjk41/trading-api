@@ -7,7 +7,6 @@ from alpaca.data.requests import StockBarsRequest
 import tempfile
 from datetime import datetime, UTC
 from alpaca.data.timeframe import TimeFrame
-import os
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential, load_model
@@ -18,6 +17,7 @@ from trading_api.database import fs, model_entry_db
 from bson import ObjectId
 import itertools
 import json
+from empyrical import sharpe_ratio, sortino_ratio, calmar_ratio, max_drawdown
 from trading_api.env import API_KEY, SECRET_KEY
 
 
@@ -28,12 +28,17 @@ class TrainingModel(BaseModel):
     _test_data: tuple[np.array, np.array] | None = PrivateAttr(None)
     _scaler: Any | None = PrivateAttr(None)
     _times: np.ndarray | None = PrivateAttr(None)
+    _sharpe_ratio: float | None = PrivateAttr(None)
+    _sortino_ratio: float | None = PrivateAttr(None)
+    _max_drawdown: float | None = PrivateAttr(None)
+    _calmar_ratio: float | None = PrivateAttr(None)
     model: Any | None = Field(None, description="The model")
 
     def run(self):
         self.check_if_ran()
         self.get_and_save_stock_data()
         self.preprocess()
+        self.calc_ratios()
         self.create_model()
         self.work_model()
         return True
@@ -149,6 +154,25 @@ class TrainingModel(BaseModel):
                 }
             )
 
+    def calc_ratios(self):
+        daily_returns = self._raw_data["close"] - self._raw_data["open"]
+        self._calc_sharpe_ratio(daily_returns)
+        self._calc_sortino_ratio(daily_returns)
+        self._calc_max_drawdown(daily_returns)
+        self._cal_calmar_ratio(daily_returns)
+
+    def _calc_sharpe_ratio(self, daily_returns: np.ndarray) -> float:
+        self._sharpe_ratio = sharpe_ratio(daily_returns, 0.01)
+
+    def _calc_sortino_ratio(self, daily_returns: np.ndarray) -> float:
+        self._sortino_ratio = sortino_ratio(daily_returns)
+
+    def _calc_max_drawdown(self, daily_returns: np.ndarray) -> float:
+        self._max_drawdown = max_drawdown(daily_returns)
+
+    def _cal_calmar_ratio(self, daily_returns: np.ndarray) -> float:
+        self._calmar_ratio = calmar_ratio(daily_returns)
+
     def work_model(self):
         predictions = self.model.predict(self._test_data[0])
         predictions = self._scaler.inverse_transform(predictions)
@@ -162,6 +186,12 @@ class TrainingModel(BaseModel):
                 "real_data": raw_data,
                 "training_data_size": len(self._training_data[1]),
                 "times": self._times,
+                "ratios": {
+                    "sharpe_ratio": self._sharpe_ratio,
+                    "sortino_ratio": self._sortino_ratio,
+                    "max_draw_down": self._max_drawdown,
+                    "calmar_ratio": self._calmar_ratio,
+                },
             }
         )
 

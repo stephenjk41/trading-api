@@ -1,7 +1,6 @@
 from fastapi import APIRouter
 from trading_api.tasks.task import train_on_symbol
 from trading_api.models.training_parameters import TrainingParameters
-import os
 from alpaca.data import StockBarsRequest, StockHistoricalDataClient
 from datetime import datetime, UTC
 from alpaca.data import TimeFrame
@@ -64,6 +63,16 @@ def get_predicted_symbol_data(symbol: str):
         "predictions": dec[0]["predicted"],
         "training_data_size": dec[0]["training_data_size"],
         "times": dec[0]["times"],
+    }
+
+
+@router.get("/{symbol}/ratios")
+def get_ratios_for_symbol_data(symbol: str):
+    models = model_entry_db.get_collection("model_data")
+    dec = models.find({"symbol": symbol}, sort=[("_id", -1)]).limit(1)
+    return {
+        "sharpe_ratio": round(dec[0]["ratios"]["sharpe_ratio"], 3),
+        "sortino_ratio": round(dec[0]["ratios"]["sortino_ratio"], 3),
     }
 
 

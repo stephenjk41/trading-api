@@ -1,16 +1,66 @@
 {% extends "index.html" %}
 {% block content %}
-<div class="container" id="main">
-    <form action="/" method="get" onsubmit="runModel(event)">
-        <div class="form-group">
-            <label>Run a new model</label>
-            <input class="form-control" type="text" placeholder="Symbol" id="symbolToRun" name="symbol">
-        </div>
-        <button class="btn btn-primary m3" type="submit" id="run">Run</button>
-    </form>
+<div id="main">
+    <div>
+        <form id="runModelForm">
+            <div class="form-group">
+                <label>Run a new model</label>
+                <input class="form-control" type="text" placeholder="Symbol" id="symbolToRun" name="symbol">
+            </div>
+            <button class="btn btn-primary m3" type="submit" id="run">Run</button>
+            <div class="spinner-border text-primary m-1" role="status" id="loadingSpinner"></div>
+        </form>
+    </div>
+    <hr />
+    <div id="cards"></div>
 </div>
 <script>
     window.onload = init
+    const form = document.getElementById("runModelForm")
+    form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const symbol = event.target.symbol.value
+        const run_req = await fetch("/train", 
+        {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "symbol": event.target.symbol.value,
+                "LSTM_units": 96,
+                "dropout": 0.2,
+                "loss_type": "mean_squared_error",
+                "optimizer": "adam",
+                "epochs": 5,
+                "batch_size": 20,
+                "training_set_size": 50
+            })
+        })
+        const res = await run_req.json()
+        var training = true
+        var spinner = document.getElementById("loadingSpinner")
+        spinner.style.display = "inline-flex"
+        while (training) {
+            var r = await fetch(`/train/status/${res.task_id}`, {
+                method: "GET"
+            })
+            var response = await r.json()
+            console.log(response)
+            if (response.status == "SUCCESS") {
+                training = false
+                spinner.style.display = "none"
+            }
+            else if (response.status == "FAILURE") {
+                training = false
+                spinner.style.display = "none"
+            }
+            else {
+                await sleep(5000);
+            }
+        }
+        init()
+    })
     async function init() {
         const param_req = await fetch("{{ url_for('get_latest_models') }}", {
             method: "GET"
@@ -18,35 +68,57 @@
         let models = await param_req.json()
         console.log(models.models_ran)
         let row
-        let container = document.getElementById("main")
+        let container = document.getElementById("cards")
+        // Find card if it exists and delete it
+        const oldCard = document.getElementById("cards")
+        while (oldCard.lastElementChild) {
+            oldCard.removeChild(oldCard.lastElementChild)
+        }
         for (let i = 0; i < models.models_ran.length; i++) {
-            console.log(i%3)
+            const ratio_req = await fetch(`/${models.models_ran[i]}/ratios`, {method: "GET"})
+            let ratios = await ratio_req.json()
+            console.log(ratios)
             if (i % 3 === 0) {
+                const rowBreak = document.createElement("hr")
                 row = document.createElement('div')
                 row.className = "row"
+                container.append(rowBreak)
                 container.appendChild(row)
             }
             const wrapper = document.createElement('div')
             const newElement = document.createElement('div')
-            const button = document.createElement('button')
-            button.type = "button"
-            button.textContent = `${models.models_ran[i]} Data`
-            button.className = "btn btn-primary"
-            button.id = `${models.models_ran[i]}_button`
-            button.onclick = function() {
-                window.location.href = `/report/${models.models_ran[i]}`
-            }
+            const card = document.createElement('div')
+            card.className = "card"
+            const cardBody = document.createElement("div")
+            cardBody.className = "card-body"
+            const cardTitle = document.createElement("h5")
+            cardTitle.textContent = `${models.models_ran[i]}`
+            const cardButton = document.createElement("a")
+            cardButton.className = "btn btn-primary"
+            cardButton.textContent = `${models.models_ran[i]} Data`
+            cardButton.href = `/report/${models.models_ran[i]}`
+            const sharpeRatio = document.createElement("p")
+            sharpeRatio.textContent = `Sharpe Ratio: ${ratios.sharpe_ratio}`
+            const sortinoRatio = document.createElement("p")
+            sortinoRatio.textContent = `Sortino Ratio: ${ratios.sortino_ratio}`
+            cardBody.appendChild(cardTitle)
+            cardBody.appendChild(sharpeRatio)
+            cardBody.appendChild(sortinoRatio)
+            cardBody.appendChild(cardButton)
+            card.style.padding = "10px"
+            card.appendChild(newElement)
+            card.appendChild(cardBody)
             newElement.id = `${models.models_ran[i]}`
             wrapper.className = "col-4"
-            wrapper.appendChild(newElement)
-            wrapper.appendChild(button)
+            wrapper.id = `${models.models_ran[i]}_content`
+            wrapper.appendChild(card)
             row.appendChild(wrapper)
             await renderPlot(models.models_ran[i])
         }
     }
 
-    async function runModel(event) {
-        console.log(event.target.symbol.value)
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     async function renderPlot(symbol) {
@@ -90,23 +162,35 @@
             title: {
                 text:`${data["symbol"]} Predicted Price - ${data["predictions"][data["predictions"].length - 1].toFixed(2)}`,
                 font: {
-                    size: 24
+                    size: 18
                 },
                 xref: 'paper',
                 x: 0.05,
             },
+            autosize: true, 
             xaxis: {
                 title: {
                 text: 'Date',
                 },
+                automargin: true,
             },
             yaxis: {
                 title: {
                 text: '$',
-                }
-            }
+                },
+                automargin: true,
+            },
+            margin: {
+                l: 50,
+                r: 50,
+                b: 100,
+                t: 100,
+                pad: 4
+            },
             };
-        Plotly.newPlot(symbol, [trace1, trace2], layout)
+            
+        var config = {responsive: true}
+        Plotly.newPlot(symbol, [trace1, trace2], layout, config)
     }
 </script>
 {% endblock %}
