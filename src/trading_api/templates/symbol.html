@@ -36,7 +36,6 @@
                     </div>
                 </div>
             </div>
-
             <br/>
             <div class="row">
                 <div class="form-group">
@@ -212,14 +211,18 @@
                 title: {
                 text: 'Date',
                 },
+                automargin: true,
             },
             yaxis: {
                 title: {
                 text: '$',
-                }
-            }
+                },
+                automargin: true,
+            },
+
             };
-        Plotly.newPlot("graph", [trace1, trace2], layout)
+        var config = {responsive: true}
+        Plotly.newPlot("graph", [trace1, trace2], layout, config)
     }
     renderPlot()
     renderTable()

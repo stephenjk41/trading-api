@@ -5,7 +5,6 @@ from alpaca.data.requests import StockBarsRequest
 
 from datetime import datetime, UTC
 from alpaca.data.timeframe import TimeFrame
-import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt

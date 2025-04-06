@@ -17,6 +17,7 @@ tensorflow-metal = "*"
 celery = "*"
 pydantic = "*"
 pymongo = "*"
+empyrical-reloaded = "*"
 
 [dev-packages]
 ruff = "*"
